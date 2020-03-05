@@ -1,50 +1,22 @@
-/*
- * Copyright 2014-2019 Netflix, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- */
 plugins {
-    id 'nebula.plugin-plugin' version '14.2.1'
+    id "com.gradle.plugin-publish" version "0.10.1"
+    id 'groovy'
     id 'java-library'
+}
+
+apply plugin: 'maven'
+apply plugin: 'signing'
+
+group = 'com.github.prokod'
+version = '0.1.0'
+
+repositories {
+    jcenter()
 }
 
 description 'Provides a task similar to Tar and Zip for constructing RPM and DEB package files.'
 
 compileGroovy.groovyOptions.configurationScript = file('src/groovyCompile/groovycConfig.groovy')
-
-contacts {
-    'justin@halfempty.org' {
-        moniker 'Justin Ryan'
-        github 'quidryan'
-    }
-    'alan@trigonic.com' {
-        moniker 'Alan Krueger'
-        github 'AlanKrueger'
-    }
-    'rob.spieldenner@gmail.com' {
-        moniker 'Rob Spieldenner'
-        github 'rspieldenner'
-    }
-    'roberto@perezalcolea.info' {
-        moniker 'Roberto Perez Alcolea'
-        github 'rpalcolea'
-    }
-}
-
-dependencyLock {
-    includeTransitives = true
-}
 
 configurations.all {
     resolutionStrategy {
@@ -52,7 +24,16 @@ configurations.all {
     }
 }
 
+configurations {
+    compileClasspath {
+        resolutionStrategy.activateDependencyLocking()
+    }
+}
+
 dependencies {
+    implementation gradleApi()
+    implementation localGroovy()
+
     implementation 'org.apache.commons:commons-lang3:3.9'
     api('org.redline-rpm:redline:1.2.9') {
         // Where logging goes is a runtime decision
@@ -68,6 +49,8 @@ dependencies {
     }
 
     implementation 'com.bmuschko:gradle-docker-plugin:3.2.1'
+
+    testCompile 'com.netflix.nebula:nebula-test:latest.release'
 }
 
 def javaApiUrl = 'http://docs.oracle.com/javase/1.6.0/docs/api/'
@@ -83,74 +66,71 @@ test {
 
 pluginBundle {
     plugins {
-        ospackage {
-            id = 'nebula.ospackage'
-            displayName = 'Nebula OS Package'
-            description = project.description
-            tags = ['nebula', 'rpm', 'centos', 'deb', 'debian']
+        rpmBuild {
+            id = 'com.github.prokod.rpm-build'
+            displayName = 'RPM Build Plugin'
+            description = 'Create RPM packages. Based on Nebula RPM plugin'
+            tags = ['rpm', 'centos', 'yum']
+        }
+    }
+}
+
+task javadocJar(type: Jar) {
+    classifier = 'javadoc'
+    from javadoc
+}
+
+task sourcesJar(type: Jar, dependsOn: classes) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+}
+
+artifacts {
+    archives javadocJar
+    archives sourcesJar
+}
+
+signing {
+    required { isReleaseVersion  && gradle.taskGraph.hasTask("uploadArchives") }
+    sign configurations.archives
+}
+
+uploadArchives.repositories.mavenDeployer {
+    beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+
+    snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
+        authentication(userName: ossrhUsername, password: ossrhPassword)
+    }
+
+    repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
+        authentication(userName: ossrhUsername, password: ossrhPassword)
+    }
+
+    pom.project {
+        name 'Gradle RPM build plugin'
+        packaging 'jar'
+        description 'Gradle RPM packaging build plugin'
+        url 'https://github.com/prokod/'
+        inceptionYear '2020'
+
+        scm {
+            developerConnection 'git@github.com:prokod/gradle-crossbuild-scala.git'
+            connection 'git://github.com/prokod/gradle-crossbuild-scala.git'
+            url 'https://github.com/prokod/gradle-crossbuild-scala'
         }
 
-        ospackageApplication {
-            id = 'nebula.ospackage-application'
-            displayName = 'Nebula OS Package Application Plugin'
-            description = 'Packages output of application plugin into a debian or rpm'
-            tags = ['nebula', 'os', 'package', 'rpm', 'deb', 'application']
+        licenses {
+            license {
+                name 'Apache License 2.0'
+                url 'https://www.apache.org/licenses/LICENSE-2.0'
+            }
         }
-
-        ospackageApplicationDaemon {
-            id = 'nebula.ospackage-application-daemon'
-            displayName = 'Nebula OS Package Application Daemon Plugin'
-            description = 'Creates daemontools setup to run output from application plugin'
-            tags = ['nebula', 'os', 'package', 'rpm', 'deb', 'application', 'daemon']
-        }
-
-        ospackageApplicationSpring {
-            id = 'nebula.ospackage-application-spring-boot'
-            displayName = 'Nebula OS Package Spring Application Plugin'
-            description = 'Packages output of application plugin into a debian or rpm'
-            tags = ['nebula', 'os', 'package', 'rpm', 'deb', 'application', 'spring']
-        }
-
-        ospackageBase {
-            id = 'nebula.ospackage-base'
-            displayName = 'Nebula OS Package Base'
-            description = 'Setup base publishing for OS packages'
-            tags = ['nebula', 'rpm', 'centos', 'deb', 'debian']
-        }
-
-        ospackageDaemon {
-            id = 'nebula.ospackage-daemon'
-            displayName = 'Nebula OS Package Daemon Plugin'
-            description = 'Create daemontools runner'
-            tags = ['nebula', 'os', 'package', 'rpm', 'deb', 'daemon']
-        }
-
-        ospackageDocker {
-            id = 'nebula.ospackage-docker'
-            displayName = 'Nebula OS Package Docker'
-            description = 'Create docker images from ospackage block'
-            tags = ['nebula', 'docker']
-        }
-
-        ospackageDockerBase {
-            id = 'nebula.ospackage-docker-base'
-            displayName = 'Nebula OS Package Docker Base'
-            description = 'Setup base publishing for docker images'
-            tags = ['nebula', 'docker']
-        }
-
-        deb {
-            id = 'nebula.deb'
-            displayName = 'Nebula Debian Packaging Plugin'
-            description = 'Create debian system packages'
-            tags = ['nebula', 'deb', 'debian']
-        }
-
-        rpm {
-            id = 'nebula.rpm'
-            displayName = 'Nebula RPM Packaging Plugin'
-            description = 'Create RPM system packages'
-            tags = ['nebula', 'rpm', 'centos']
+        developers {
+            developer {
+                id 'noamasor'
+                name 'Noam Asor'
+                email 'noamas@gmail.com'
+            }
         }
     }
 }
